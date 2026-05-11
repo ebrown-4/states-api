@@ -1,81 +1,94 @@
-const statesData = require('../models/statesData.json');
 const State = require('../models/State');
+const statesData = require('../models/statesData.json');
 
-// Helper: find state in JSON file
-const findState = (code) => {
-    return statesData.find(state => state.code === code);
-};
+const findState = (code) => statesData.find(s => s.code === code);
 
-// GET all states (merged with MongoDB fun facts)
+// GET /states
 const getAllStates = async (req, res) => {
-    let states = [...statesData];
+    let states = statesData;
+
+    if (req.query.contig === 'true') {
+        states = states.filter(s => s.code !== 'AK' && s.code !== 'HI');
+    }
+
+    if (req.query.contig === 'false') {
+        states = states.filter(s => s.code === 'AK' || s.code === 'HI');
+    }
 
     const dbStates = await State.find().exec();
 
-    states = states.map(state => {
+    const merged = states.map(state => {
         const dbState = dbStates.find(s => s.stateCode === state.code);
 
         if (dbState && dbState.funfacts && dbState.funfacts.length > 0) {
             return { ...state, funfacts: dbState.funfacts };
         }
 
-        const { funfacts, ...rest } = state;
-        return rest;
+        return state;
     });
 
-    if (req.query.contig === 'true') {
-        return res.json(states.filter(s => s.code !== 'AK' && s.code !== 'HI'));
-    }
-
-    if (req.query.contig === 'false') {
-        return res.json(states.filter(s => s.code === 'AK' || s.code === 'HI'));
-    }
-
-    res.json(states);
+    res.json(merged);
 };
 
-// GET single state
+// GET /states/:state
 const getState = async (req, res) => {
     const code = req.stateCode;
-    const state = findState(code);
+    const stateInfo = findState(code);
 
     const dbState = await State.findOne({ stateCode: code }).exec();
 
-    const result = dbState && dbState.funfacts && dbState.funfacts.length > 0
-        ? { ...state, funfacts: dbState.funfacts }
-        : state;
+    let response = { ...stateInfo };
 
-    res.json(result);
+    if (dbState && dbState.funfacts && dbState.funfacts.length > 0) {
+        response.funfacts = dbState.funfacts;
+    }
+
+    res.json(response);
 };
 
-// GET capital
+// GET /states/:state/capital
 const getCapital = (req, res) => {
     const state = findState(req.stateCode);
-    res.json({ state: state.state, capital: state.capital_city });
+    res.json({
+        state: state.state,
+        capital: state.capital_city
+    });
 };
 
-// GET nickname
+// GET /states/:state/nickname
 const getNickname = (req, res) => {
     const state = findState(req.stateCode);
-    res.json({ state: state.state, nickname: state.nickname });
+    res.json({
+        state: state.state,
+        nickname: state.nickname
+    });
 };
 
-// GET population
+// GET /states/:state/population
 const getPopulation = (req, res) => {
     const state = findState(req.stateCode);
-    res.json({ state: state.state, population: state.population.toLocaleString() });
+    const formattedPopulation = Number(state.population).toLocaleString("en-US");
+
+    res.json({
+        state: state.state,
+        population: formattedPopulation
+    });
 };
 
-// GET admission date
+// GET /states/:state/admission
 const getAdmission = (req, res) => {
     const state = findState(req.stateCode);
-    res.json({ state: state.state, admitted: state.admission_date });
+    res.json({
+        state: state.state,
+        admitted: state.admission_date
+    });
 };
 
-// GET random fun fact
+// GET /states/:state/funfact
 const getRandomFunFact = async (req, res) => {
     const code = req.stateCode;
     const stateInfo = findState(code);
+
     const dbState = await State.findOne({ stateCode: code }).exec();
 
     if (!dbState || !dbState.funfacts || dbState.funfacts.length === 0) {
@@ -86,43 +99,45 @@ const getRandomFunFact = async (req, res) => {
     res.json({ funfact: random });
 };
 
-// POST fun facts
+// POST /states/:state/funfact
 const createFunFact = async (req, res) => {
     const code = req.stateCode;
     const stateInfo = findState(code);
-    const { funfacts } = req.body;
 
-    if (!funfacts) {
+    if (!req.body.funfacts) {
         return res.status(400).json({ message: "State fun facts value required" });
     }
 
-    if (!Array.isArray(funfacts)) {
+    if (!Array.isArray(req.body.funfacts)) {
         return res.status(400).json({ message: "State fun facts value must be an array" });
     }
 
     let state = await State.findOne({ stateCode: code }).exec();
 
     if (!state) {
-        state = await State.create({ stateCode: code, funfacts });
+        state = await State.create({
+            stateCode: code,
+            funfacts: req.body.funfacts
+        });
     } else {
-        state.funfacts.push(...funfacts);
+        state.funfacts.push(...req.body.funfacts);
         await state.save();
     }
 
-    res.json(state);
+    res.status(201).json(state);
 };
 
-// PATCH fun fact
+// PATCH /states/:state/funfact
 const updateFunFact = async (req, res) => {
     const code = req.stateCode;
     const stateInfo = findState(code);
     const { index, funfact } = req.body;
 
-    if (index === undefined) {
+    if (!index) {
         return res.status(400).json({ message: "State fun fact index value required" });
     }
 
-    if (!funfact || typeof funfact !== "string") {
+    if (!funfact) {
         return res.status(400).json({ message: "State fun fact value required" });
     }
 
@@ -142,7 +157,7 @@ const updateFunFact = async (req, res) => {
     res.json(state);
 };
 
-// DELETE fun fact
+// DELETE /states/:state/funfact
 const deleteFunFact = async (req, res) => {
     const code = req.stateCode;
     const stateInfo = findState(code);
