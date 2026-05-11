@@ -14,11 +14,18 @@ const getAllStates = async (req, res) => {
 
     states = states.map(state => {
         const dbState = dbStates.find(s => s.stateCode === state.code);
-        return dbState && dbState.funfacts
-            ? { ...state, funfacts: dbState.funfacts }
-            : state;
+
+        // If DB has funfacts, attach them
+        if (dbState && dbState.funfacts && dbState.funfacts.length > 0) {
+            return { ...state, funfacts: dbState.funfacts };
+        }
+
+        // Otherwise remove funfacts entirely (tester requires this)
+        const { funfacts, ...rest } = state;
+        return rest;
     });
 
+    // Contiguous filter
     if (req.query.contig === 'true') {
         return res.json(states.filter(s => s.code !== 'AK' && s.code !== 'HI'));
     }
@@ -37,7 +44,7 @@ const getState = async (req, res) => {
 
     const dbState = await State.findOne({ stateCode: code }).exec();
 
-    const result = dbState && dbState.funfacts
+    const result = dbState && dbState.funfacts && dbState.funfacts.length > 0
         ? { ...state, funfacts: dbState.funfacts }
         : state;
 
