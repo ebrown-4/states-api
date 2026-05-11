@@ -15,17 +15,14 @@ const getAllStates = async (req, res) => {
     states = states.map(state => {
         const dbState = dbStates.find(s => s.stateCode === state.code);
 
-        // If DB has funfacts, attach them
         if (dbState && dbState.funfacts && dbState.funfacts.length > 0) {
             return { ...state, funfacts: dbState.funfacts };
         }
 
-        // Otherwise remove funfacts entirely (tester requires this)
         const { funfacts, ...rest } = state;
         return rest;
     });
 
-    // Contiguous filter
     if (req.query.contig === 'true') {
         return res.json(states.filter(s => s.code !== 'AK' && s.code !== 'HI'));
     }
@@ -92,9 +89,14 @@ const getRandomFunFact = async (req, res) => {
 // POST fun facts
 const createFunFact = async (req, res) => {
     const code = req.stateCode;
+    const stateInfo = findState(code);
     const { funfacts } = req.body;
 
-    if (!funfacts || !Array.isArray(funfacts)) {
+    if (!funfacts) {
+        return res.status(400).json({ message: "State fun facts value required" });
+    }
+
+    if (!Array.isArray(funfacts)) {
         return res.status(400).json({ message: "State fun facts value must be an array" });
     }
 
@@ -116,8 +118,12 @@ const updateFunFact = async (req, res) => {
     const stateInfo = findState(code);
     const { index, funfact } = req.body;
 
-    if (index === undefined || !funfact) {
-        return res.status(400).json({ message: "State fun fact index and value are required" });
+    if (index === undefined) {
+        return res.status(400).json({ message: "State fun fact index value required" });
+    }
+
+    if (!funfact || typeof funfact !== "string") {
+        return res.status(400).json({ message: "State fun fact value required" });
     }
 
     const state = await State.findOne({ stateCode: code }).exec();
