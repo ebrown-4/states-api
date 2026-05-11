@@ -2,20 +2,26 @@ const express = require('express');
 const app = express();
 const mongoose = require('mongoose');
 const cors = require('cors');
+const path = require('path');
 require('dotenv').config();
 
 app.use(cors());
 app.use(express.json());
 
-// Simple API check
-app.get('/api', (req, res) => {
-    res.json({ message: "API is running" });
+// Root HTML page
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'views', 'index.html'));
 });
 
-// Routes
-app.use('/api/states', require('./routes/api/states'));
+// States routes (NO /api prefix)
+app.use('/states', require('./routes/api/states'));
 
-// MongoDB connection (Mongoose 7+ — NO options allowed)
+// 404 HTML fallback
+app.all('*', (req, res) => {
+    res.status(404).sendFile(path.join(__dirname, 'views', '404.html'));
+});
+
+// MongoDB connection
 mongoose.connect(process.env.DATABASE_URI)
     .then(() => {
         console.log('MongoDB connected');
