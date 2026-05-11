@@ -4,6 +4,25 @@ const State = require('../models/State');
 // Helper: find state in JSON
 const findState = (code) => statesData.find(s => s.code === code);
 
+// Helper: format state object for output
+const formatState = (state, dbFunfacts) => {
+    const formatted = {
+        state: state.state,
+        code: state.code,
+        nickname: state.nickname,
+        capital_city: state.capital_city,
+        population: state.population,
+        admission_date: state.admission_date,
+        admission_number: state.admission_number
+    };
+
+    if (dbFunfacts && dbFunfacts.length > 0) {
+        formatted.funfacts = dbFunfacts;
+    }
+
+    return formatted;
+};
+
 // GET /states
 const getAllStates = async (req, res) => {
     let states = [...statesData];
@@ -20,9 +39,7 @@ const getAllStates = async (req, res) => {
 
     const merged = states.map(state => {
         const dbState = dbStates.find(s => s.stateCode === state.code);
-        return dbState && dbState.funfacts?.length > 0
-            ? { ...state, funfacts: dbState.funfacts }
-            : state;
+        return formatState(state, dbState?.funfacts);
     });
 
     res.json(merged);
@@ -35,11 +52,7 @@ const getState = async (req, res) => {
 
     const dbState = await State.findOne({ stateCode: code }).exec();
 
-    const response = dbState && dbState.funfacts?.length > 0
-        ? { ...stateInfo, funfacts: dbState.funfacts }
-        : stateInfo;
-
-    res.json(response);
+    res.json(formatState(stateInfo, dbState?.funfacts));
 };
 
 // GET /states/:state/capital
@@ -70,10 +83,12 @@ const getAdmission = (req, res) => {
 // GET /states/:state/funfact
 const getRandomFunFact = async (req, res) => {
     const code = req.stateCode;
+    const stateInfo = findState(code);
+
     const dbState = await State.findOne({ stateCode: code }).exec();
 
     if (!dbState || !dbState.funfacts?.length) {
-        return res.status(404).json({ message: `No Fun Facts found for ${code}` });
+        return res.status(404).json({ message: `No Fun Facts found for ${stateInfo.state}` });
     }
 
     const random = dbState.funfacts[Math.floor(Math.random() * dbState.funfacts.length)];
@@ -83,6 +98,7 @@ const getRandomFunFact = async (req, res) => {
 // POST /states/:state/funfact
 const createFunFact = async (req, res) => {
     const code = req.stateCode;
+    const stateInfo = findState(code);
 
     if (!req.body.funfacts) {
         return res.status(400).json({ message: "State fun facts value required" });
@@ -110,6 +126,7 @@ const createFunFact = async (req, res) => {
 // PATCH /states/:state/funfact
 const updateFunFact = async (req, res) => {
     const code = req.stateCode;
+    const stateInfo = findState(code);
     const { index, funfact } = req.body;
 
     if (index === undefined) {
@@ -123,11 +140,11 @@ const updateFunFact = async (req, res) => {
     const state = await State.findOne({ stateCode: code }).exec();
 
     if (!state || !state.funfacts?.length) {
-        return res.status(404).json({ message: `No Fun Facts found for ${code}` });
+        return res.status(404).json({ message: `No Fun Facts found for ${stateInfo.state}` });
     }
 
     if (index < 1 || index > state.funfacts.length) {
-        return res.status(404).json({ message: `No Fun Fact found at that index for ${code}` });
+        return res.status(404).json({ message: `No Fun Fact found at that index for ${stateInfo.state}` });
     }
 
     state.funfacts[index - 1] = funfact;
@@ -139,6 +156,7 @@ const updateFunFact = async (req, res) => {
 // DELETE /states/:state/funfact
 const deleteFunFact = async (req, res) => {
     const code = req.stateCode;
+    const stateInfo = findState(code);
     const { index } = req.body;
 
     if (index === undefined) {
@@ -148,11 +166,11 @@ const deleteFunFact = async (req, res) => {
     const state = await State.findOne({ stateCode: code }).exec();
 
     if (!state || !state.funfacts?.length) {
-        return res.status(404).json({ message: `No Fun Facts found for ${code}` });
+        return res.status(404).json({ message: `No Fun Facts found for ${stateInfo.state}` });
     }
 
     if (index < 1 || index > state.funfacts.length) {
-        return res.status(404).json({ message: `No Fun Fact found at that index for ${code}` });
+        return res.status(404).json({ message: `No Fun Fact found at that index for ${stateInfo.state}` });
     }
 
     state.funfacts.splice(index - 1, 1);
